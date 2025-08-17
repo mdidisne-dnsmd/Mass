@@ -6,6 +6,12 @@ apscheduler==3.11.0
 
 # Browser Automation
 playwright==1.46.0
+patchright
+camoufox[geoip]
+
+# API Server (for Turnstile solver)
+quart
+hypercorn
 
 # HTTP and Networking (kept for compatibility)
 aiohttp==3.10.11

@@ -15,7 +15,11 @@ from handlers.file_handler import FileHandler
 from handlers.callback_handler import CallbackHandler
 
 # Import configuration
-from config.settings import BOT_TOKEN, ADMIN_USER_ID, TEMP_DIR, DATA_DIR
+from config.settings import (
+    BOT_TOKEN, ADMIN_USER_ID, TEMP_DIR, DATA_DIR,
+    ENABLE_TURNSTILE_SERVICE, TURNSTILE_SERVICE_HOST, TURNSTILE_SERVICE_PORT,
+    TURNSTILE_SERVICE_THREADS, USE_ENHANCED_BROWSER, PREFERRED_BROWSER_TYPE
+)
 
 # Setup logging
 logging.basicConfig(
@@ -45,6 +49,55 @@ async def setup_bot_commands(application):
     await application.bot.set_my_commands(commands)
     logger.info("Bot commands set up successfully!")
 
+async def start_turnstile_service():
+    """Start the Turnstile API service for enhanced Cloudflare bypass"""
+    if not ENABLE_TURNSTILE_SERVICE:
+        logger.info("🔧 Turnstile service disabled in settings")
+        return
+    
+    try:
+        import sys
+        import os
+        
+        # Add turnstile_solver to path
+        turnstile_path = os.path.join(os.path.dirname(__file__), 'turnstile_solver')
+        if turnstile_path not in sys.path:
+            sys.path.insert(0, turnstile_path)
+        
+        from api_solver import create_app
+        import hypercorn.asyncio
+        
+        logger.info(f"🚀 Starting Turnstile API service for enhanced Cloudflare bypass")
+        logger.info(f"   Host: {TURNSTILE_SERVICE_HOST}:{TURNSTILE_SERVICE_PORT}")
+        logger.info(f"   Browser: {PREFERRED_BROWSER_TYPE} (enhanced: {USE_ENHANCED_BROWSER})")
+        logger.info(f"   Threads: {TURNSTILE_SERVICE_THREADS}")
+        
+        # Create the Turnstile solver app
+        app = create_app(
+            headless=True,  # Always headless for server
+            useragent=None,  # Let the service choose
+            debug=False,  # Disable debug for production
+            browser_type=PREFERRED_BROWSER_TYPE,
+            thread=TURNSTILE_SERVICE_THREADS,
+            proxy_support=True  # Enable proxy support
+        )
+        
+        # Configure hypercorn
+        config = hypercorn.Config()
+        config.bind = [f"{TURNSTILE_SERVICE_HOST}:{TURNSTILE_SERVICE_PORT}"]
+        config.use_reloader = False
+        config.access_log_format = "%(h)s %(r)s %(s)s %(b)s %(D)s"
+        
+        # Start the service in background
+        import asyncio
+        asyncio.create_task(hypercorn.asyncio.serve(app, config))
+        
+        logger.info("✅ Turnstile API service started successfully!")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to start Turnstile service: {e}")
+        logger.info("🔄 Bot will continue with basic Cloudflare handling")
+
 def main():
     """Start the bot"""
     # Check if token is provided
@@ -65,6 +118,12 @@ def main():
         when=1
     )
     
+    # Start Turnstile service for enhanced Cloudflare bypass
+    application.job_queue.run_once(
+        lambda context: start_turnstile_service(), 
+        when=2
+    )
+    
     # Add handlers
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
@@ -82,7 +141,12 @@ def main():
     application.add_error_handler(error_handler)
     
     # Start bot
-    logger.info("🤖 Starting Exo Mass Checker Bot...")
+    logger.info("🤖 Starting Exo Mass Checker Bot with Enhanced Turnstile Bypass...")
+    logger.info(f"🔧 Enhanced Browser: {USE_ENHANCED_BROWSER} ({PREFERRED_BROWSER_TYPE})")
+    logger.info(f"🛡️ Turnstile Service: {ENABLE_TURNSTILE_SERVICE}")
+    if ENABLE_TURNSTILE_SERVICE:
+        logger.info(f"🌐 Turnstile API: http://{TURNSTILE_SERVICE_HOST}:{TURNSTILE_SERVICE_PORT}")
+    
     try:
         application.run_polling(allowed_updates=Update.ALL_TYPES)
     except KeyboardInterrupt:
