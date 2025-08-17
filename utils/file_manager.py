@@ -77,43 +77,113 @@ class FileManager:
                     
                     # Write profile information if available
                     if profile_info and not profile_info.get('error') and not profile_info.get('profile_error'):
-                        if 'account_id' in profile_info:
-                            await f.write(f"Account ID: {profile_info['account_id']}\n")
+                        # Check if we have the new enhanced format
+                        account_data_info = profile_info.get('account_data', profile_info)
                         
-                        if 'created_at' in profile_info:
-                            await f.write(f"Created: {profile_info['created_at']}\n")
+                        # Basic account info
+                        if 'account_id' in account_data_info:
+                            await f.write(f"Account ID: {account_data_info['account_id']}\n")
                         
-                        if 'updated_at' in profile_info:
-                            await f.write(f"Last Update: {profile_info['updated_at']}\n")
+                        if 'display_name' in account_data_info:
+                            await f.write(f"Display Name: {account_data_info['display_name']}\n")
                         
-                        # Stats
-                        if 'battle_pass_purchased' in profile_info:
-                            await f.write(f"Battle Pass Purchased: {profile_info['battle_pass_purchased']}\n")
+                        if 'email_verified' in account_data_info:
+                            await f.write(f"Email Verified: {account_data_info['email_verified']}\n")
                         
-                        if 'battle_pass_level' in profile_info:
-                            await f.write(f"Battle Pass Level: {profile_info['battle_pass_level']}\n")
+                        if 'extraction_method' in profile_info:
+                            await f.write(f"Data Source: {profile_info['extraction_method']}\n")
                         
-                        if 'lifetime_wins' in profile_info:
-                            await f.write(f"Lifetime Wins: {profile_info['lifetime_wins']}\n")
+                        if 'timestamp' in profile_info:
+                            await f.write(f"Checked: {profile_info['timestamp']}\n")
                         
-                        if 'seasonal_level' in profile_info:
-                            await f.write(f"Seasonal Level: {profile_info['seasonal_level']}\n")
+                        # Account stats
+                        if 'account_level' in account_data_info:
+                            await f.write(f"Account Level: {account_data_info['account_level']}\n")
                         
-                        if 'account_level' in profile_info:
-                            await f.write(f"Account Level: {profile_info['account_level']}\n")
+                        if 'account_xp' in account_data_info:
+                            await f.write(f"Account XP: {account_data_info['account_xp']}\n")
                         
-                        # Cosmetics
-                        if 'outfits' in profile_info and profile_info['outfits']:
-                            await f.write(f"Outfits:\n{profile_info['outfits']}\n")
+                        # V-Bucks information
+                        if 'total_vbucks' in account_data_info:
+                            await f.write(f"Total V-Bucks: {account_data_info['total_vbucks']}\n")
+                        elif any(key in account_data_info for key in ['vbucks_purchased', 'vbucks_earned', 'vbucks_giveaway']):
+                            vbucks_purchased = account_data_info.get('vbucks_purchased', 0)
+                            vbucks_earned = account_data_info.get('vbucks_earned', 0)
+                            vbucks_giveaway = account_data_info.get('vbucks_giveaway', 0)
+                            if vbucks_purchased > 0:
+                                await f.write(f"V-Bucks Purchased: {vbucks_purchased}\n")
+                            if vbucks_earned > 0:
+                                await f.write(f"V-Bucks Earned: {vbucks_earned}\n")
+                            if vbucks_giveaway > 0:
+                                await f.write(f"V-Bucks Giveaway: {vbucks_giveaway}\n")
                         
-                        if 'back_blings' in profile_info and profile_info['back_blings']:
-                            await f.write(f"Back Blings:\n{profile_info['back_blings']}\n")
+                        # Battle Pass info
+                        if 'battle_pass_purchased' in account_data_info:
+                            await f.write(f"Battle Pass Purchased: {account_data_info['battle_pass_purchased']}\n")
                         
-                        if 'gliders' in profile_info and profile_info['gliders']:
-                            await f.write(f"Gliders:\n{profile_info['gliders']}\n")
+                        if 'battle_pass_level' in account_data_info:
+                            await f.write(f"Battle Pass Level: {account_data_info['battle_pass_level']}\n")
                         
-                        if 'pickaxes' in profile_info and profile_info['pickaxes']:
-                            await f.write(f"Pickaxes:\n{profile_info['pickaxes']}\n")
+                        if 'seasonal_level' in account_data_info:
+                            await f.write(f"Seasonal Level: {account_data_info['seasonal_level']}\n")
+                        
+                        if 'lifetime_wins' in account_data_info:
+                            await f.write(f"Lifetime Wins: {account_data_info['lifetime_wins']}\n")
+                        
+                        # Enhanced Cosmetics with counts
+                        if 'total_cosmetics' in account_data_info:
+                            await f.write(f"Total Cosmetics: {account_data_info['total_cosmetics']}\n")
+                        
+                        # Skins (Outfits)
+                        if 'skins' in account_data_info and account_data_info['skins']:
+                            skins = account_data_info['skins']
+                            await f.write(f"Skins ({len(skins)}):\n")
+                            for skin in skins:
+                                await f.write(f"  • {skin}\n")
+                        elif 'outfits' in account_data_info and account_data_info['outfits']:
+                            # Fallback to old format
+                            await f.write(f"Skins:\n{account_data_info['outfits']}\n")
+                        
+                        # Back Blings
+                        if 'back_blings' in account_data_info and account_data_info['back_blings']:
+                            back_blings = account_data_info['back_blings']
+                            if isinstance(back_blings, list):
+                                await f.write(f"Back Blings ({len(back_blings)}):\n")
+                                for back_bling in back_blings:
+                                    await f.write(f"  • {back_bling}\n")
+                            else:
+                                await f.write(f"Back Blings:\n{back_blings}\n")
+                        
+                        # Gliders
+                        if 'gliders' in account_data_info and account_data_info['gliders']:
+                            gliders = account_data_info['gliders']
+                            if isinstance(gliders, list):
+                                await f.write(f"Gliders ({len(gliders)}):\n")
+                                for glider in gliders:
+                                    await f.write(f"  • {glider}\n")
+                            else:
+                                await f.write(f"Gliders:\n{gliders}\n")
+                        
+                        # Pickaxes
+                        if 'pickaxes' in account_data_info and account_data_info['pickaxes']:
+                            pickaxes = account_data_info['pickaxes']
+                            if isinstance(pickaxes, list):
+                                await f.write(f"Pickaxes ({len(pickaxes)}):\n")
+                                for pickaxe in pickaxes:
+                                    await f.write(f"  • {pickaxe}\n")
+                            else:
+                                await f.write(f"Pickaxes:\n{pickaxes}\n")
+                        
+                        # Linked accounts
+                        if 'linked_accounts' in account_data_info and account_data_info['linked_accounts']:
+                            linked = account_data_info['linked_accounts']
+                            if linked:
+                                await f.write("Linked Accounts:\n")
+                                for account in linked:
+                                    if isinstance(account, dict):
+                                        account_type = account.get('type', 'Unknown')
+                                        external_display_name = account.get('externalDisplayName', 'N/A')
+                                        await f.write(f"  • {account_type}: {external_display_name}\n")
                         
                         # Past seasons
                         if 'past_seasons' in profile_info and profile_info['past_seasons']:
