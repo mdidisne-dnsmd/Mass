@@ -81,7 +81,7 @@ class FileManager:
                         # Only include fields from Epic verify and Fortnite accountInfo
                         account_data_info = profile_info.get('account_data', profile_info)
                         if 'account_id' in account_data_info:
-                            await f.write(f"ID: {account_data_info['account_id']}\n")
+                            await f.write(f"Account ID: {account_data_info['account_id']}\n")
                         if 'display_name' in account_data_info:
                             await f.write(f"Display Name: {account_data_info['display_name']}\n")
                         if 'email_verified' in account_data_info:
