@@ -1,0 +1,18 @@
+# Core Telegram Bot Dependencies
+python-telegram-bot[job-queue]==22.3
+python-dotenv==1.1.1
+aiofiles==24.1.0
+apscheduler==3.11.0
+
+# Browser Automation
+playwright==1.46.0
+
+# HTTP and Networking (kept for compatibility)
+aiohttp==3.10.11
+requests==2.32.3
+
+# Data Processing
+lxml==5.4.0
+
+# Utilities
+psutil==7.0.0
