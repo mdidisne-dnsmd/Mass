@@ -1256,18 +1256,144 @@ class AccountCheckerCF:
     
     async def fetch_account_details(self, auth_code: Optional[str], page: Page, email: str) -> Dict[str, Any]:
         """
-        Enhanced account information extraction with comprehensive data collection
-        Returns detailed account info including profile, stats, and account status
+        Minimal account information extraction via Epic verify and Fortnite accountInfo
+        Returns only fields from those web APIs
         """
         account_info = {
             'email': email,
             'status': 'valid',
-            'extraction_method': 'unknown',
+            'extraction_method': 'web_epic_fortnite_api',
             'timestamp': datetime.now().isoformat(),
             'account_data': {}
         }
         
         try:
+            # Minimal data extraction per request: use Epic verify and Fortnite accountInfo only
+            # 1) Save sessionStorage snapshot (for persistence indication)
+            try:
+                storage_snapshot = await page.evaluate(
+                    "() => { const s = {}; for (let i=0;i<sessionStorage.length;i++){const k=sessionStorage.key(i); s[k]=sessionStorage.getItem(k);} return s; }"
+                )
+                account_info['session_storage_saved'] = True if isinstance(storage_snapshot, dict) else False
+            except Exception:
+                account_info['session_storage_saved'] = False
+
+            # 2) Verify Epic account to get id and displayName
+            if 'epicgames.com' not in page.url:
+                try:
+                    await page.goto('https://www.epicgames.com/id/login', wait_until='domcontentloaded')
+                except Exception:
+                    pass
+            try:
+                verify_resp = await page.evaluate(
+                    """
+                    async () => {
+                        try {
+                            const res = await fetch('https://www.epicgames.com/id/api/account/verify', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            const text = await res.text();
+                            let data = null; try { data = JSON.parse(text); } catch(e) {}
+                            return { ok: res.ok, status: res.status, data, raw: text };
+                        } catch (e) {
+                            return { ok: false, status: 0, error: String(e) };
+                        }
+                    }
+                    """
+                )
+            except Exception as e:
+                verify_resp = { 'ok': False, 'status': 0, 'error': str(e) }
+
+            if not verify_resp.get('ok') or not isinstance(verify_resp.get('data'), dict):
+                raise RuntimeError(f"Verify API failed: {verify_resp.get('status')} - {verify_resp.get('error') or verify_resp.get('raw', '')[:120]}")
+
+            epic_data = verify_resp['data']
+            account_info['account_data'].update({
+                'account_id': epic_data.get('id'),
+                'display_name': epic_data.get('displayName') or epic_data.get('displayname'),
+                'email_verified': epic_data.get('emailVerified', None)
+            })
+
+            # 3) Fortnite account info via locale API
+            try:
+                nav_lang = await page.evaluate("() => (navigator.language || 'en-US')")
+            except Exception:
+                nav_lang = 'en-US'
+
+            candidate_locales = []
+            if isinstance(nav_lang, str) and len(nav_lang) >= 2:
+                if '-' in nav_lang:
+                    parts = nav_lang.split('-')
+                    candidate_locales.append(f"{parts[0].lower()}-{parts[1].upper()}")
+                else:
+                    candidate_locales.append(nav_lang.lower())
+            candidate_locales += ['en-US', 'en']
+
+            fortnite_info = None
+            for loc in candidate_locales:
+                try:
+                    url = f"https://www.fortnite.com/{loc}/api/accountInfo"
+                    resp = await page.evaluate(
+                        """
+                        async (url) => {
+                            try {
+                                const res = await fetch(url, { credentials: 'include' });
+                                const text = await res.text();
+                                let data = null; try { data = JSON.parse(text); } catch(e) {}
+                                return { ok: res.ok, status: res.status, data, raw: text };
+                            } catch (e) {
+                                return { ok: false, status: 0, error: String(e) };
+                            }
+                        }
+                        """,
+                        url
+                    )
+                    if resp and resp.get('ok') and isinstance(resp.get('data'), dict):
+                        fortnite_info = resp['data']
+                        fortnite_info['_used_locale'] = loc
+                        break
+                except Exception:
+                    continue
+
+            if not fortnite_info:
+                try:
+                    await page.goto('https://www.fortnite.com/en-US', wait_until='domcontentloaded')
+                    resp2 = await page.evaluate(
+                        """
+                        async () => {
+                            try {
+                                const res = await fetch('/en-US/api/accountInfo', { credentials: 'include' });
+                                const text = await res.text();
+                                let data = null; try { data = JSON.parse(text); } catch(e) {}
+                                return { ok: res.ok, status: res.status, data, raw: text };
+                            } catch (e) {
+                                return { ok: false, status: 0, error: String(e) };
+                            }
+                        }
+                        """
+                    )
+                    if resp2 and resp2.get('ok') and isinstance(resp2.get('data'), dict):
+                        fortnite_info = resp2['data']
+                        fortnite_info['_used_locale'] = 'en-US'
+                except Exception:
+                    pass
+
+            if isinstance(fortnite_info, dict):
+                acct = fortnite_info.get('accountInfo') or {}
+                account_info['account_data'].update({
+                    'is_logged_in': fortnite_info.get('isLoggedIn', acct.get('isLoggedIn')),
+                    'fortnite_account_id': acct.get('id'),
+                    'fortnite_display_name': acct.get('displayName'),
+                    'fortnite_email': acct.get('email'),
+                    'country': acct.get('country'),
+                    'lang': acct.get('lang'),
+                    'cabined_mode': acct.get('cabinedMode')
+                })
+
+            return account_info
+
             # Method 1: Try API-based approach with auth code
             if auth_code:
                 print(f"🔍 {email} - Fetching account details using auth token...")
