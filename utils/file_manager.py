@@ -99,6 +99,8 @@ class FileManager:
                             await f.write(f"Fortnite Email: {account_data_info['fortnite_email']}\n")
                         if 'fortnite_display_name' in account_data_info:
                             await f.write(f"Fortnite Display Name: {account_data_info['fortnite_display_name']}\n")
+                        if 'fortnite_account_id' in account_data_info:
+                            await f.write(f"Fortnite Account ID: {account_data_info['fortnite_account_id']}\n")
                     elif profile_info and (profile_info.get('error') or profile_info.get('profile_error')):
                         # Account valid but minimal API fetch failed
                         pass
